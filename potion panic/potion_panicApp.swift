@@ -11,7 +11,7 @@ import SwiftUI
 struct potion_panicApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            HomeView()
         }
     }
 }
