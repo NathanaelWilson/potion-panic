@@ -298,6 +298,7 @@ class GameViewModel: ObservableObject {
     }
     
     func updateDefaultExpression() {
+        guard timeLeft > 0 else { return }
         guard currentExpression != .angry && currentExpression != .celebrate else { return }
         
         if timeLeft < 30 {
