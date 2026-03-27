@@ -14,6 +14,7 @@ struct GameView: View {
     @State private var cauldronFrame: CGRect = .zero
     @State private var visibleItemsCount: Int = 0
     @State private var isWitchFloating: Bool = false
+    @State private var spawnTimer: Timer?
     
     var body: some View {
         ZStack {
@@ -74,7 +75,6 @@ struct GameView: View {
                     // Grid Kotak
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         ForEach(0..<8, id: \.self) { index in
-                            // HANYA tampilkan jika index lebih kecil dari visibleItemsCount
                             if index < visibleItemsCount {
                                 SequenceBoxView(
                                     ingredient: viewModel.currentSequence.indices.contains(index) ? viewModel.currentSequence[index] : .mushroom,
@@ -97,39 +97,47 @@ struct GameView: View {
                 // AREA DRAG & DROP (6 ingredients & Cauldron)
                 GeometryReader { geometry in
                     ZStack {
-                        Image(viewModel.currentExpression.rawValue)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 580)
-                            .offset(y: isWitchFloating ? -3 : 3)
-                            .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 10)
-                            .onAppear {
-                                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                                    isWitchFloating = true
+                        ZStack {
+                            Image(viewModel.currentWitchImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 580)
+                                .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 10)
+                                .id(viewModel.currentWitchImage)
+                                .transition(.scale(scale: 0.85).combined(with: .opacity))
+                            
+                            if let message = viewModel.witchMessage {
+                                VStack(spacing: 0) {
+                                    Text(message)
+                                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 15)
+                                        .padding(.vertical, 10)
+                                        .background(Color.white)
+                                        .cornerRadius(15)
+                                        .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 5)
+                                    
+                                    Image(systemName: "arrowtriangle.down.fill")
+                                        .foregroundColor(.white)
+                                        .font(.title3)
+                                        .offset(x:-30, y: -4)
                                 }
-                            }
-                        
-                        if let message = viewModel.witchMessage {
-                            VStack(spacing: 0) {
-                                Text(message)
-                                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                                    .foregroundColor(.black)
-                                    .padding(.horizontal, 15)
-                                    .padding(.vertical, 10)
-                                    .background(Color.white)
-                                    .cornerRadius(15)
-                                    .shadow(color: .black.opacity(0.2), radius: 5, x: 0, y: 5)
-                                
-                                Image(systemName: "arrowtriangle.down.fill")
-                                    .foregroundColor(.white)
-                                    .font(.title3)
-                                    .offset(x:-30, y: -4)
-                            }
 
-                            .offset(x: 45, y: -190)
-                            .transition(.scale(scale: 0.5).combined(with: .opacity))
-                            .zIndex(2)
+                                .offset(x: 45, y: -190)
+                                .transition(.scale(scale: 0.5).combined(with: .opacity))
+                                .zIndex(2)
+                            }
                         }
+                        .offset(y: isWitchFloating ? -3 : 3)
+                        .onAppear {
+                            restartFloating()
+                        }
+                        
+                        .onChange(of: viewModel.currentWitchImage) {
+                            restartFloating()
+                        }
+                        
+                        
                         
                         Image("cauldron")
                             .resizable()
@@ -146,32 +154,26 @@ struct GameView: View {
                         // 6 INGREDIENTS
                         DraggableIngredientView(ingredient: .pufferFish, viewModel: viewModel, cauldronFrame: cauldronFrame)
                             .position(x: geometry.size.width * 0.16, y: geometry.size.height * 0.14) // Kiri Atas
-                            .disabled(viewModel.isSpawning)
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
                         DraggableIngredientView(ingredient: .spiderEye, viewModel: viewModel, cauldronFrame: cauldronFrame)
                             .position(x: geometry.size.width * 0.05, y: geometry.size.height * 0.4) // Kiri Tengah
-                            .disabled(viewModel.isSpawning)
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
                         DraggableIngredientView(ingredient: .mushroom, viewModel: viewModel, cauldronFrame: cauldronFrame)
                             .position(x: geometry.size.width * 0.12, y: geometry.size.height * 0.7) // Kiri Bawah
-                            .disabled(viewModel.isSpawning)
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
                         DraggableIngredientView(ingredient: .chickenFoot, viewModel: viewModel, cauldronFrame: cauldronFrame)
                             .position(x: geometry.size.width * 0.95, y: geometry.size.height * 0.15) // Kanan Atas
-                            .disabled(viewModel.isSpawning)
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
                         DraggableIngredientView(ingredient: .goldenCarrot, viewModel: viewModel, cauldronFrame: cauldronFrame)
                             .position(x: geometry.size.width * 0.88, y: geometry.size.height * 0.48) // Kanan Tengah
-                            .disabled(viewModel.isSpawning)
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
                         DraggableIngredientView(ingredient: .flower, viewModel: viewModel, cauldronFrame: cauldronFrame)
                             .position(x: geometry.size.width * 0.9, y: geometry.size.height * 0.8) // Kanan Bawah
-                            .disabled(viewModel.isSpawning)
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                     }
                     
@@ -180,29 +182,70 @@ struct GameView: View {
                 .padding(.bottom, 20)
             }
             
+            // countdown
+            if viewModel.showCountdown {
+                ZStack {
+                    Color.black.opacity(0.7)
+                        .ignoresSafeArea()
+                    
+                    Text(viewModel.countdownText)
+                        .font(.system(size: 55, weight: .black, design: .rounded))
+                        .foregroundColor(viewModel.countdownText == "BREW!" ? .green : .orange)
+                        .shadow(color: .black, radius: 5, x: 0, y: 5)
+                        .id(viewModel.countdownText)
+                        .transition(.scale(scale: 0.5).combined(with: .opacity))
+                }
+                .zIndex(3)
+            }
+            if viewModel.showNarrative {
+                ZStack {
+                    // Latar belakang hitam pekat
+                    Color.black.ignoresSafeArea()
+                        .opacity(0.7)
+                    // Teks Narasi
+                    Text(viewModel.narrativeText)
+                        // Font serif (seperti Times New Roman) memberikan kesan klasik/puisi yang dalam
+                        .font(.system(size: 28, weight: .medium, design: .serif))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                        
+                        // Modifier .id memaksa efek fade-in fade-out saat teks berganti
+                        .id(viewModel.narrativeText)
+                        .transition(.opacity)
+                }
+                .zIndex(2) // Berada di atas elemen game
+            }
+            
             if viewModel.isGameOver {
                 GameOverView(viewModel: viewModel)
                     .zIndex(2)
             }
         }
+        
+        //
         .onPreferenceChange(RectPreferenceKey.self) { frame in
             self.cauldronFrame = frame
         }
         .onChange(of: viewModel.currentSequence) {
-            startSequenceAppearanceAnimation()
+            if !viewModel.showCountdown {
+                startSequenceAppearanceAnimation()
+            }
         }
         .onAppear {
-            startSequenceAppearanceAnimation()
             viewModel.blinkManager.start()
+            viewModel.startNewGame()
         }
         .onDisappear {
             viewModel.blinkManager.stop()
         }
     }
-        
+    
     private func startSequenceAppearanceAnimation() {
-        visibleItemsCount = 0
+        spawnTimer?.invalidate()
+        spawnTimer = nil
         
+        visibleItemsCount = 0
         viewModel.isSpawning = true
         
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -210,7 +253,13 @@ struct GameView: View {
         }
         
         // Timer lokal yang berjalan setiap 0.3 detik
-        Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { timer in
+        spawnTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { timer in
+            guard viewModel.timeLeft > 0 else {
+                timer.invalidate()
+                self.spawnTimer = nil
+                return
+            }
+            
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 visibleItemsCount += 1
             }
@@ -218,11 +267,33 @@ struct GameView: View {
             // Kalau sudah 8 kotak muncul, matikan timer
             if visibleItemsCount >= 8 {
                 timer.invalidate()
+                self.spawnTimer = nil
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.48) {
+                    guard viewModel.timeLeft > 0 else { return }
                     viewModel.isSpawning = false
                     SoundManager.shared.playBGM(soundName: "drag-and-drop", loops: 3)
                 }
+            }
+        }
+    }
+    
+    private func restartFloating() {
+        // Matikan animasi sejenak
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isWitchFloating = false
+        }
+    
+        if viewModel.currentExpression == .fainting || viewModel.currentExpression == .passedOut {
+            return
+        }
+        
+        // Nyalakan lagi
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                self.isWitchFloating = true
             }
         }
     }

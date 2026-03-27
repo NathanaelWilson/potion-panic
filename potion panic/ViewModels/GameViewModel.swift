@@ -7,6 +7,9 @@ enum WitchExpression: String {
     case angry = "angry_witch"
     case celebrate = "celebrating_witch"
     case nervous = "nervous_witch"
+    
+    case fainting = "fainting_witch"
+    case passedOut = "passed_out_witch"
 }
 
 class GameViewModel: ObservableObject {
@@ -25,17 +28,39 @@ class GameViewModel: ObservableObject {
         }
     @Published var potionTimeLeft: Int = 10
     @Published var isGameOver: Bool = false
-    @Published var isSpawning: Bool = true
     
+    // potion ingrredients
+    @Published var isSpawning: Bool = true
     @Published var currentSequence: [Ingredient] = []
     @Published var currentIndex: Int = 0
     
+    //explode effect
     @Published var showExplosion: Bool = false
+    
+    // expression
     @Published var currentExpression: WitchExpression = .regular
     
     // Chat box
     @Published var witchMessage: String? = nil
     private var messageWorkItem: DispatchWorkItem?
+    
+    // anticipation screen
+    @Published var showCountdown: Bool = false
+    @Published var countdownText: String = ""
+    
+    // narasi
+    @Published var showNarrative: Bool = false
+    @Published var narrativeText: String = ""
+    
+    // aging
+    @Published var isYoung: Bool = true
+    var currentWitchImage: String {
+        if isYoung {
+            return "young_" + currentExpression.rawValue
+        } else {
+            return currentExpression.rawValue
+        }
+    }
     
     // blink detector
     let blinkManager = BlinkManager()
@@ -43,7 +68,6 @@ class GameViewModel: ObservableObject {
     private var timerCancellable: AnyCancellable?
     
     init() {
-        startNewGame()
         blinkManager.onBlinkDetected = { [weak self] in
             self?.handleBlinkPenalty()
         }
@@ -64,20 +88,56 @@ class GameViewModel: ObservableObject {
         timeLeft = 100
         score = 0
         isGameOver = false
+        isYoung = true
         
-        generateNewSequence()
-        startTimer()
+        runCountdownPhase()
     }
     
     func gameOver() {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                isGameOver = true
-            }
-            timerCancellable?.cancel()
-        
+        timerCancellable?.cancel()
         SoundManager.shared.stopBGM()
-        // SoundManager.shared.playSFX(soundName: "sfx_gameover")
+        
+        // Putar efek suara Mario Game Over
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            SoundManager.shared.playBGM(soundName: "SUPER MARIO - game over", loops: 0)
         }
+        
+        // 2. Animasi Pingsan (Detik ke-0)
+        withAnimation(.easeInOut(duration: 0.5)) {
+            self.isYoung = false // Pastikan dia dalam wujud tua karena waktunya habis
+            self.currentExpression = .fainting
+        }
+        
+        // 3. Jatuh ke Lantai (Detik ke-1.0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.easeIn(duration: 0.3)) {
+                self.currentExpression = .passedOut
+            }
+        }
+        
+        // 4. Layar Menggelap & Teks Pertama Muncul (Detik ke-2.5)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                self.showNarrative = true
+                self.narrativeText = "Life passes in the blink of an eye."
+            }
+        }
+        
+        // 5. Ganti ke Teks Kedua (Detik ke-4.5)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                self.narrativeText = "Use it well."
+            }
+        }
+        
+        // 6. Akhirnya, Tampilkan Layar Game Over Asli (Detik ke-8.0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 7.0) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                self.showNarrative = false // Sembunyikan layar hitam narasi
+                self.isGameOver = true     // Munculkan pop-up Game Over kayumu
+            }
+        }
+    }
     
     func startTimer() {
         // buat matiin timer yang lama
@@ -91,7 +151,20 @@ class GameViewModel: ObservableObject {
                 
                 if self.timeLeft > 0 {
                     self.timeLeft -= 1
-                    self.updateDefaultExpression()
+                    
+                    if self.isYoung && self.timeLeft <= 50 {
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            self.isYoung = false
+                            self.currentExpression = .nervous
+                        }
+                        
+                        // Kembali ke ekspresi normal setelah 2 detik
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            withAnimation { self.updateDefaultExpression() }
+                        }
+                    } else {
+                        self.updateDefaultExpression()
+                    }
                     
                     if self.timeLeft == 75 {
                         self.showWitchMessage("Keep going...")
@@ -99,7 +172,7 @@ class GameViewModel: ObservableObject {
                         self.showWitchMessage("Hurry up!")
                     } else if self.timeLeft == 30 {
                         self.showWitchMessage("Time is ticking...")
-                    } else if self.timeLeft == 10 {
+                    } else if self.timeLeft == 6 {
                         self.showWitchMessage("Last chance!")
                     }
                     
@@ -129,6 +202,18 @@ class GameViewModel: ObservableObject {
         timeLeft += 15
         score += 1
         
+        if !isYoung && timeLeft > 50 {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                self.isYoung = true
+                self.currentExpression = .celebrate
+            }
+        } else {
+            // Animasi celebrate normal jika umur tidak berubah
+            withAnimation {
+                self.currentExpression = .celebrate
+            }
+        }
+        
         SoundManager.shared.stopBGM()
         
         let generator = UINotificationFeedbackGenerator()
@@ -136,9 +221,7 @@ class GameViewModel: ObservableObject {
         
         self.showWitchMessage("Nice one...")
         
-        withAnimation {
-            self.currentExpression = .celebrate
-        }
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             withAnimation {
                 self.currentExpression = .regular
@@ -151,7 +234,7 @@ class GameViewModel: ObservableObject {
     
     
     func handleDrop(ingredient: Ingredient) {
-        guard !isGameOver && !isSpawning else { return }
+        guard !isGameOver && !isSpawning && timeLeft > 0 else { return }
         
         if ingredient == currentSequence[currentIndex] {
             currentIndex += 1
@@ -174,9 +257,16 @@ class GameViewModel: ObservableObject {
             currentIndex = 0
             potionTimeLeft = Int(maxPotionTime)
             
+            if isYoung && timeLeft <= 50 {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    isYoung = false
+                }
+            }
+            
             withAnimation {
                 self.currentExpression = .angry
             }
+            
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 withAnimation {
                     self.currentExpression = .regular 
@@ -218,7 +308,7 @@ class GameViewModel: ObservableObject {
     }
     
     func handleBlinkPenalty() {
-        guard !isGameOver else { return }
+        guard !showCountdown && timeLeft > 0 && !isGameOver else { return }
         
         timeLeft -= 30
         
@@ -230,7 +320,7 @@ class GameViewModel: ObservableObject {
         
         self.showWitchMessage("Stop blinking!")
         
-        SoundManager.shared.playSFX(soundName: "sfx_wrong") // Ganti dengan efek suara horor/time-skip kalau ada!
+        SoundManager.shared.playSFX(soundName: "sfx_wrong") // ganti sfx petir
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.error)
         
@@ -267,5 +357,28 @@ class GameViewModel: ObservableObject {
 
         messageWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: workItem)
+    }
+    
+    func runCountdownPhase() {
+        showCountdown = true
+        countdownText = "Don't Blink!"
+        
+        SoundManager.shared.playBGM(soundName: "test-intro")
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.5)) {
+                self.countdownText = "BREW!"
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    self.showCountdown = false
+                }
+                self.generateNewSequence()
+                self.startTimer()
+                
+            }
+        }
+        
     }
 }
