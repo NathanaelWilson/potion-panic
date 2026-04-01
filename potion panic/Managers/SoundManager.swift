@@ -31,7 +31,7 @@ class SoundManager {
     }
     
     // Fungsi untuk memutar efek suara (Bunyi sekali saja)
-    func playSFX(soundName: String, type: String = "wav") {
+    func playSFX(soundName: String, type: String = "mp3") {
         guard let url = Bundle.main.url(forResource: soundName, withExtension: type) else {
             print("Error: File SFX \(soundName).\(type) tidak ditemukan!")
             return
@@ -39,7 +39,7 @@ class SoundManager {
         
         do {
             sfxPlayer = try AVAudioPlayer(contentsOf: url)
-            sfxPlayer?.volume = 1.0 // Volume SFX full
+            sfxPlayer?.volume = 0.2 // Volume SFX full
             sfxPlayer?.play()
         } catch {
             print("Error: Gagal memutar SFX. \(error.localizedDescription)")

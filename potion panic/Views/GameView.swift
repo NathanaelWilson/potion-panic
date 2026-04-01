@@ -16,6 +16,13 @@ struct GameView: View {
     @State private var isWitchFloating: Bool = false
     @State private var spawnTimer: Timer?
     
+    // animasi text waktu
+    @State private var floatingTimeOffset: CGFloat = 0
+    @State private var floatingTimeOpacity: Double = 0
+    
+    // berubah
+    @State private var sinkingItems: [SinkingEffectItem] = []
+    
     var body: some View {
         ZStack {
             
@@ -43,19 +50,55 @@ struct GameView: View {
                 Spacer()
             }
             VStack {
-                // --- 1. HEADER (Timer Utama & Skor) ---
+                // --- (Timer Utama & Skor) ---
                 HStack {
-                    Text("\(viewModel.timeLeft)d")
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
-                        .foregroundColor(viewModel.timeLeft < 30 ? .red : .white)
+                    ZStack(alignment: .topLeading) {
+                        
+                        // Timer Asli & Jam Pasir
+                        HStack(spacing: 6) {
+                            Image(systemName: "hourglass")
+                                .font(.system(size: 25, weight: .bold))
+                                .foregroundColor(viewModel.timeLeft < 30 ? .red : .white)
+                                .scaleEffect(viewModel.timeLeft < 30 ? 1.1 : 1.0)
+                                .animation(viewModel.timeLeft < 30 ? .easeInOut(duration: 0.5).repeatForever() : .default, value: viewModel.timeLeft < 30)
+                            
+                            Text("\(viewModel.timeLeft)d")
+                                .font(.system(size: 30, weight: .bold, design: .rounded))
+                                .foregroundColor(viewModel.timeLeft < 30 ? .red : .white)
+                        }
+                        
+                        Text(viewModel.timeModifierText)
+                            .font(.system(size: 28, weight: .heavy, design: .rounded))
+                            .foregroundColor(viewModel.timeModifierColor)
+                            .shadow(color: .black, radius: 2, x: 0, y: 2)
+                            .offset(x: 40, y: floatingTimeOffset)
+                            .opacity(floatingTimeOpacity)
+                    }
                     Spacer()
+                    
                     Text("Potion: \(viewModel.score)")
                         .font(.title2)
                         .foregroundColor(.white)
                         .bold()
                 }
                 .padding(.horizontal, 30)
-                .padding(.top, 30)
+                .padding(.top, 45)
+                
+                .onChange(of: viewModel.timeModifierTrigger) {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        floatingTimeOffset = 0
+                        floatingTimeOpacity = 1.0
+                    }
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        withAnimation(.easeOut(duration: 1.2)) {
+                            floatingTimeOffset = -50
+                            floatingTimeOpacity = 0.0
+                        }
+                    }
+                }
                 
                 // Grid 8 ingredients
                 VStack(spacing: 5) {
@@ -151,35 +194,98 @@ struct GameView: View {
                         .position(x: geometry.size.width / 2, y: geometry.size.height * 0.8)
                 
                         
-                        // 6 INGREDIENTS
-                        DraggableIngredientView(ingredient: .pufferFish, viewModel: viewModel, cauldronFrame: cauldronFrame)
+                        // 6 INGREDIENTS // berubah
+                        DraggableIngredientView(ingredient: .pufferFish, viewModel: viewModel, cauldronFrame: cauldronFrame) { droppedIngredient, dropLocation in
+                            SoundManager.shared.playSFX(soundName: "splash")
+                            let newSinkingItem = SinkingEffectItem(ingredient: .pufferFish, position: dropLocation)
+                            sinkingItems.append(newSinkingItem)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                sinkingItems.removeAll { $0.id == newSinkingItem.id }
+                            }
+                        }
                             .position(x: geometry.size.width * 0.16, y: geometry.size.height * 0.14) // Kiri Atas
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
-                        DraggableIngredientView(ingredient: .spiderEye, viewModel: viewModel, cauldronFrame: cauldronFrame)
+                        DraggableIngredientView(ingredient: .spiderEye, viewModel: viewModel, cauldronFrame: cauldronFrame) { droppedIngredient, dropLocation in
+                            SoundManager.shared.playSFX(soundName: "splash")
+                            let newSinkingItem = SinkingEffectItem(ingredient: .spiderEye, position: dropLocation)
+                            sinkingItems.append(newSinkingItem)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                sinkingItems.removeAll { $0.id == newSinkingItem.id }
+                            }
+                        }
                             .position(x: geometry.size.width * 0.05, y: geometry.size.height * 0.4) // Kiri Tengah
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
-                        DraggableIngredientView(ingredient: .mushroom, viewModel: viewModel, cauldronFrame: cauldronFrame)
+                        DraggableIngredientView(ingredient: .mushroom, viewModel: viewModel, cauldronFrame: cauldronFrame) { droppedIngredient, dropLocation in
+                            SoundManager.shared.playSFX(soundName: "splash")
+                            let newSinkingItem = SinkingEffectItem(ingredient: .mushroom, position: dropLocation)
+                            sinkingItems.append(newSinkingItem)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                sinkingItems.removeAll { $0.id == newSinkingItem.id }
+                            }
+                        }
                             .position(x: geometry.size.width * 0.12, y: geometry.size.height * 0.7) // Kiri Bawah
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
-                        DraggableIngredientView(ingredient: .chickenFoot, viewModel: viewModel, cauldronFrame: cauldronFrame)
+                        DraggableIngredientView(ingredient: .chickenFoot, viewModel: viewModel, cauldronFrame: cauldronFrame) { droppedIngredient, dropLocation in
+                            SoundManager.shared.playSFX(soundName: "splash")
+                            let newSinkingItem = SinkingEffectItem(ingredient: .chickenFoot, position: dropLocation)
+                            sinkingItems.append(newSinkingItem)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                sinkingItems.removeAll { $0.id == newSinkingItem.id }
+                            }
+                        }
                             .position(x: geometry.size.width * 0.95, y: geometry.size.height * 0.15) // Kanan Atas
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
-                        DraggableIngredientView(ingredient: .goldenCarrot, viewModel: viewModel, cauldronFrame: cauldronFrame)
+                        DraggableIngredientView(ingredient: .goldenCarrot, viewModel: viewModel, cauldronFrame: cauldronFrame) { droppedIngredient, dropLocation in
+                            SoundManager.shared.playSFX(soundName: "splash")
+                            let newSinkingItem = SinkingEffectItem(ingredient: .goldenCarrot, position: dropLocation)
+                            sinkingItems.append(newSinkingItem)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                sinkingItems.removeAll { $0.id == newSinkingItem.id }
+                            }
+                        }
                             .position(x: geometry.size.width * 0.88, y: geometry.size.height * 0.48) // Kanan Tengah
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                         
-                        DraggableIngredientView(ingredient: .flower, viewModel: viewModel, cauldronFrame: cauldronFrame)
-                            .position(x: geometry.size.width * 0.9, y: geometry.size.height * 0.8) // Kanan Bawah
+                        DraggableIngredientView(ingredient: .flower, viewModel: viewModel, cauldronFrame: cauldronFrame) { droppedIngredient, dropLocation in
+                            SoundManager.shared.playSFX(soundName: "splash")
+                            let newSinkingItem = SinkingEffectItem(ingredient: .flower, position: dropLocation)
+                            sinkingItems.append(newSinkingItem)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                sinkingItems.removeAll { $0.id == newSinkingItem.id }
+                            }
+                        }
+                            .position(x: geometry.size.width * 0.93, y: geometry.size.height * 0.76) // Kanan Bawah
                             .saturation(viewModel.isSpawning ? 0.0 : 1.0)
                     }
                     
                 }
                 .padding(.horizontal, 10)
                 .padding(.bottom, 20)
+            }
+            
+            // berubah
+            ForEach(sinkingItems) { item in
+                SinkingEffectView(item: item)
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            
+            // explosion
+            if viewModel.showExplosion {
+                Image("exploded_potion")
+                    .resizable()
+                    .ignoresSafeArea()
+  
+                    .transition(
+                        .scale(scale: 0.1)
+                        .combined(with: .opacity)
+                    )
+                    
+                    .zIndex(10)
             }
             
             // countdown
@@ -197,6 +303,7 @@ struct GameView: View {
                 }
                 .zIndex(3)
             }
+            
             if viewModel.showNarrative {
                 ZStack {
                     // Latar belakang hitam pekat
@@ -333,6 +440,11 @@ struct DraggableIngredientView: View {
     var cauldronFrame: CGRect
     
     @State private var dragOffset: CGSize = .zero
+    let onSuccessfulDrop: (Ingredient, CGPoint) -> Void
+    
+    private var isDropEnabled: Bool {
+        !viewModel.isSpawning && viewModel.timeLeft > 0 && !viewModel.isGameOver
+    }
     
     var body: some View {
         Image(ingredient.imageName)
@@ -344,13 +456,24 @@ struct DraggableIngredientView: View {
         .gesture(
             DragGesture(coordinateSpace: .global)
                 .onChanged { value in
+                    guard isDropEnabled else { return }
                     dragOffset = value.translation
                 }
                 .onEnded { value in
+                    guard isDropEnabled else {
+                        dragOffset = .zero
+                        return
+                    }
+                    
                     let finalGlobalLocation = value.location
                     let tolerantCauldronFrame = cauldronFrame.insetBy(dx: -40, dy: -40)
 
                     if tolerantCauldronFrame.contains(finalGlobalLocation) {
+                        let targetLiquidPoint = CGPoint(
+                            x: cauldronFrame.midX,
+                            y: cauldronFrame.midY - 80
+                        )
+                        onSuccessfulDrop(ingredient, targetLiquidPoint)
                         viewModel.handleDrop(ingredient: ingredient)
                     }
                     
@@ -359,6 +482,7 @@ struct DraggableIngredientView: View {
                     }
                 }
         )
+        .allowsHitTesting(isDropEnabled)
         .zIndex(dragOffset == .zero ? 0 : 1)
     }
 }
